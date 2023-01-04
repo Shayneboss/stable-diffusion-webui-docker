@@ -1,5 +1,28 @@
 # syntax=docker/dockerfile:1
+
 FROM alpine/git:2.36.2 as download
+
+#SHELL ["/bin/sh", "-ceuxo", "pipefail"]
+#
+#RUN <<EOF
+#cat <<'EOE' > /clone.sh
+#mkdir -p repositories/"$1" && cd repositories/"$1" && git init && git remote add origin "$2" && git fetch origin "$3" --depth=1 && git reset --hard "$3" && rm -rf .git
+#EOE
+#EOF
+#
+#RUN . /clone.sh taming-transformers https://github.com/CompVis/taming-transformers.git 24268930bf1dce879235a7fddd0b2355b84d7ea6 \
+#  && rm -rf data assets **/*.ipynb
+#
+#RUN . /clone.sh stable-diffusion-stability-ai https://github.com/Stability-AI/stablediffusion.git 47b6b607fdd31875c9279cd2f4f16b92e4ea958e \
+#  && rm -rf assets data/**/*.png data/**/*.jpg data/**/*.gif
+#
+#RUN . /clone.sh CodeFormer https://github.com/sczhou/CodeFormer.git c5b4593074ba6214284d6acd5f1719b6c5d739af \
+#  && rm -rf assets inputs
+#
+#RUN . /clone.sh BLIP https://github.com/salesforce/BLIP.git 48211a1594f1321b00f14c9f7a5b4813144b2fb9
+#RUN . /clone.sh k-diffusion https://github.com/crowsonkb/k-diffusion.git 5b3af030dd83e0297272d861c19477735d0317ec
+#RUN . /clone.sh clip-interrogator https://github.com/pharmapsychotic/clip-interrogator 2486589f24165c8e3b303f84e9dbbea318df83e8
+
 
 FROM alpine:3 as xformers
 RUN apk add aria2
@@ -9,18 +32,18 @@ FROM python:3.10-slim
 
 SHELL ["/bin/bash", "-ceuxo", "pipefail"]
 
-ENV DEBIAN_FRONTEND=noninteractive PIP_PREFER_BINARY=1 PIP_NO_CACHE_DIR=1
+ENV DEBIAN_FRONTEND=noninteractive PIP_PREFER_BINARY=1
 
-#RUN pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
-RUN pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116 -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN PIP_NO_CACHE_DIR=1 pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 RUN  sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list && apt-get clean
 RUN apt-get update && apt install fonts-dejavu-core rsync git jq moreutils -y && apt-get clean
 
 
-RUN <<EOF
+RUN --mount=type=cache,target=/root/.cache/pip <<EOF
 git clone https://hub.njuu.cf/AUTOMATIC1111/stable-diffusion-webui.git
 cd stable-diffusion-webui
+git reset --hard 4af3ca5393151d61363c30eef4965e694eeac15e
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements_versions.txt
 EOF
 
@@ -47,7 +70,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Note: don't update the sha of previous versions because the install will take forever
 # instead, update the repo state in a later step
 
-ARG SHA=685f9631b56ff8bd43bce24ff5ce0f9a0e9af490
+ARG SHA=3e22e294135ed0327ce9d9738655ff03c53df3c0
 RUN --mount=type=cache,target=/root/.cache/pip <<EOF
 cd stable-diffusion-webui
 git fetch
@@ -62,8 +85,7 @@ COPY . /docker
 
 RUN <<EOF
 python3 /docker/info.py ${ROOT}/modules/ui.py
-mv  ${ROOT}/style.css ${ROOT}/user.css
-sed -i 's/os.rename(tmpdir, target_dir)/shutil.move(tmpdir,target_dir)/' ${ROOT}/modules/ui_extensions.py
+mv ${ROOT}/style.css ${ROOT}/user.css
 EOF
 
 WORKDIR ${ROOT}
