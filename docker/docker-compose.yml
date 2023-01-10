@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  sd_auto_webui:
+    image: registry.hamis.ssc-hn.com/pallas-server/sd_auto_webui:v20230103-28
+    container_name: sd_auto_webui
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CLI_ARGS=--allow-code --medvram --xformers --enable-insecure-extension-access --api
+      - ROOT=/stable-diffusion-webui
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    ipc: host
+    ports:
+      - "7860:7860"
+    entrypoint:
+      - /docker/entrypoint.sh
+    command:
+      - /bin/bash
+      - -ceuxo
+      - pipefail
+      - python3 -u webui.py --listen --port 7860 ${CLI_ARGS}
+    working_dir: ${ROOT}
+    volumes:
+      - /data/ai_art/sd-webui/outputs:/sd/outputs
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+#      - type: bind
+#        source: /data/StableDiffusion/xxx.ckpt
+#        target: /data/StableDiffusion/xxx.ckpt
